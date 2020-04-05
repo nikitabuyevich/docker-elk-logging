@@ -1,0 +1,57 @@
+version: "3"
+
+services:
+  elasticsearch:
+    image: elasticsearch
+    container_name: elasticsearch
+    build:
+      context: elasticsearch/
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      - elk
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+
+  kibana:
+    image: kibana
+    container_name: kibana
+    build:
+      context: kibana/
+    volumes:
+      - ./kibana/config/:/usr/share/kibana/config:ro
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  filebeat:
+    image: filebeat
+    container_name: filebeat
+    build:
+      context: filebeat/
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+      - kibana
+    volumes:
+      # needed to persist filebeat tracking data :
+      - "filebeat_data:/usr/share/filebeat/data:rw"
+      # needed to access all docker logs (read only) :
+      - "/var/lib/docker/containers:/usr/share/docker-logs/data:ro"
+      # needed to access additional informations about containers
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  # create a persistent volume for Filebeat
+  filebeat_data:

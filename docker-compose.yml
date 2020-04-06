@@ -5,7 +5,7 @@ services:
     image: elasticsearch
     container_name: elasticsearch
     build:
-      context: elasticsearch/
+      context: elasticsearch
     ports:
       - "9200:9200"
       - "9300:9300"
@@ -14,13 +14,14 @@ services:
     volumes:
       - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
     environment:
+      # Heap size
       ES_JAVA_OPTS: "-Xmx256m -Xms256m"
 
   kibana:
     image: kibana
     container_name: kibana
     build:
-      context: kibana/
+      context: kibana
     volumes:
       - ./kibana/config/:/usr/share/kibana/config:ro
     ports:
@@ -34,13 +35,15 @@ services:
     image: filebeat
     container_name: filebeat
     build:
-      context: filebeat/
+      context: filebeat
     networks:
       - elk
     depends_on:
       - elasticsearch
       - kibana
     volumes:
+      # Filebeat config
+      - "./filebeat/config/filebeat.yml:/usr/share/filebeat/filebeat.yml"
       # needed to persist filebeat tracking data :
       - "filebeat_data:/usr/share/filebeat/data:rw"
       # needed to access all docker logs (read only) :

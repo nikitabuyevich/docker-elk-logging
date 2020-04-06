@@ -1,41 +1,54 @@
 # filebeat.yml
 
-filebeat.prospectors:
-  - type: log
-    json.keys_under_root: true
-    # Json key name, which value contains a sub JSON document produced by our application Console Appender
-    json.message_key: log
-    enabled: true
-    encoding: utf-8
-    document_type: docker
-    paths:
-      # Location of all our Docker log files (mapped volume in docker-compose.yml)
-      - "/usr/share/filebeat/docker-logs/*/*.log"
+name: "api-filebeat"
+
+# Searches for docker containers matching a certain criteria
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            contains:
+              # Will discover any Docker container with tags of filebeat="true"
+              docker.container.labels.filebeat: "true"
+          config:
+            - type: container
+              json.keys_under_root: false
+              json.add_error_key: true
+              paths:
+                - /usr/share/docker-logs/data/${data.docker.container.id}/*.log
+
+# Inputs gets called after autodiscover finds something
+filebeat.inputs:
+  - type: docker
+    containers:
+      # Type of stream to look for
+      stream: "stderr"
+      ids:
+        - "*"
+
 processors:
-  # decode the log field (sub JSON document) if JSONencoded, then maps it's fields to elasticsearch fields
-  - decode_json_fields:
-      fields: ["log"]
-      target: ""
-      # overwrite existing target elasticsearch fields while decoding json fields
-      overwrite_keys: true
+  # Add all docker metadata
   - add_docker_metadata: ~
 
-filebeat.config.modules:
-  path: ${path.config}/modules.d/*.yml
-  reload.enabled: false
-
+# ES Settings
 setup.template.settings:
   index.number_of_shards: 3
+setup.template.overwrite: true
 
-setup.kibana:
-  # if your kibana is local you can change it to 127.0.0.1:80
-  host: "kibana:5601"
-  protocol: "http"
-  # identification required for X-pack
-  # username: "my_login"
-  # password: "my_password"
-  # path needed if kibana not at website root
-  path: "/kibana"
+# Add tags to give more context about the machine
+# Example:
+# backend
+# web-server
+tags: ["backend", "web-server"]
+
+# Add specific fields to get more context about the log
+# Example:
+# instance_id: i-10a123
+# region: us-east-1
+fields:
+  instance_id: i-10a64379
+  region: us-east-1
 
 output.elasticsearch:
   # if your elasticsearch is local you can change it to 127.0.0.1:9200
@@ -44,15 +57,18 @@ output.elasticsearch:
     name: "filebeat"
     path: "fields.yml"
     overwrite: false
-  protocol: "http"
+  # protocol: "http"
   # identification required for X-pack
   # username: "my_login"
   # password: "my_password"
 
 # Write Filebeat own logs only to file to avoid catching them with itself in docker log files
+logging.level: error
 logging.to_files: true
 logging.to_syslog: false
-
-# X-pack optional module
-xpack.monitoring.enabled: true
-xpack.monitoring.elasticsearch:
+loggins.metrice.enabled: false
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
